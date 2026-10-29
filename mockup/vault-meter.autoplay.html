@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>T08 Vault Meter — password strength from a paperclip to a vault</title>
+<link rel="stylesheet" href="_shared/nocturne.css">
+<style>
+  #stage{background:radial-gradient(ellipse 60% 55% at 50% 55%,#0D0F16 0%,var(--void) 72%)}
+  .head{position:absolute;left:340px;top:132px;width:760px}
+  .kicker{font:500 14px var(--f-mono);letter-spacing:.2em;color:var(--text-3);text-transform:uppercase}
+  .title{margin-top:12px;font:600 46px/1 var(--f-text);letter-spacing:-.02em}
+
+  .pw{position:absolute;left:340px;top:236px;width:760px;height:88px;z-index:3}
+  .pw input{width:100%;height:100%;border-radius:16px;background:rgba(255,255,255,.035);border:1.5px solid var(--line-2);padding:0 96px 0 28px;
+    font:500 36px var(--f-mono);letter-spacing:.06em;color:var(--text);outline:none;transition:border-color .25s,box-shadow .25s;caret-color:var(--pulse-pale)}
+  .pw input::placeholder{color:#4A4D5C;letter-spacing:.02em}
+  .pw input:focus{border-color:var(--pulse);box-shadow:0 0 0 5px rgba(124,108,255,.16)}
+  .pw.vault input{border-color:rgba(63,224,208,.7);box-shadow:0 0 0 5px rgba(63,224,208,.14)}
+  .pw .eye{position:absolute;right:16px;top:16px;width:56px;height:56px;border-radius:12px;display:flex;align-items:center;justify-content:center;color:var(--text-3);transition:background .2s,color .2s}
+  .pw .eye:hover,.pw .eye.li-hover{background:var(--raise);color:var(--text)}
+  .pw .eye:focus-visible{outline:2px solid var(--pulse-pale)}
+  .pw .eye .off{display:none}.pw .eye.masked .on{display:none}.pw .eye.masked .off{display:block}
+
+  .meter{position:absolute;left:340px;top:350px;width:760px;height:360px;z-index:2;border-radius:24px;
+    background:linear-gradient(180deg,#10121A 0%,#0C0D13 100%);border:1px solid var(--line);
+    box-shadow:0 60px 120px -40px rgba(0,0,0,.8);transition:border-color .45s,box-shadow .6s}
+  .meter.vault{border-color:rgba(63,224,208,.55);box-shadow:0 60px 120px -40px rgba(0,0,0,.8),0 0 80px -16px rgba(63,224,208,.35),0 0 0 1px rgba(63,224,208,.15) inset}
+  .meter .hud-corners{inset:-12px}
+  .meter.vault .hud-corners{--c:rgba(63,224,208,.6)}
+  .obj{position:absolute;left:12px;top:14px;width:330px;height:330px;overflow:visible}
+  .obj path{fill:none;stroke-linecap:round;stroke-linejoin:round}
+  .objbase{position:absolute;left:22px;top:24px;width:310px;height:310px;border-radius:18px;background:radial-gradient(circle at 50% 60%,rgba(255,255,255,.03),transparent 70%)}
+
+  .right{position:absolute;left:362px;top:44px;width:366px}
+  .nameWrap{position:relative;height:44px;overflow:hidden}
+  .name{position:absolute;left:0;top:0;font:600 38px/44px var(--f-display);letter-spacing:.03em;text-transform:uppercase;white-space:nowrap;transition:color .35s}
+  .segs{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:20px}
+  .segs i{height:12px;border-radius:6px;background:rgba(255,255,255,.08);transition:background .3s,box-shadow .3s}
+  .crack{margin-top:22px;font:500 30px/1.15 var(--f-text);letter-spacing:-.01em;color:var(--text);white-space:nowrap}
+  .crack span{transition:color .3s}
+  .est{margin-top:8px;font:500 13px var(--f-mono);letter-spacing:.16em;color:var(--text-3);text-transform:uppercase}
+  .bits{position:absolute;left:362px;bottom:30px;display:flex;align-items:baseline;gap:12px}
+  .bits b{font:600 66px/1 var(--f-display);letter-spacing:.01em;transition:color .3s}
+  .bits small{font:500 20px var(--f-mono);letter-spacing:.14em;color:var(--text-2);text-transform:uppercase}
+  .classes{display:flex;gap:8px;margin-top:16px}
+  .classes span{height:30px;padding:0 10px;border-radius:8px;border:1px solid var(--line-2);display:flex;align-items:center;font:500 14px var(--f-mono);letter-spacing:.06em;color:var(--text-3);transition:all .25s}
+  .classes span.on{color:var(--text);border-color:rgba(255,255,255,.35);background:rgba(255,255,255,.06)}
+  /* payoff: the vault lights up and an Ion light sweeps across the screen */
+  .flood{position:absolute;left:520px;top:540px;width:2400px;height:2400px;margin:-1200px 0 0 -1200px;border-radius:50%;z-index:1;pointer-events:none;opacity:0;
+    background:radial-gradient(circle,rgba(63,224,208,.55) 0%,rgba(63,224,208,.34) 16%,rgba(63,224,208,.16) 33%,rgba(63,224,208,.05) 50%,transparent 66%)}
+  .sweep{position:absolute;inset:0;z-index:6;pointer-events:none;overflow:hidden}
+  .sweep i{position:absolute;top:-200px;bottom:-200px;left:0;width:560px;opacity:0;transform:translateX(-700px) skewX(-20deg);mix-blend-mode:screen;
+    background:linear-gradient(90deg,transparent,rgba(63,224,208,.2) 26%,rgba(63,224,208,.72) 50%,rgba(63,224,208,.2) 74%,transparent)}
+</style>
+</head>
+<body>
+<div id="stage" class="grid" data-title="T08 Vault Meter" data-url="veraetogrex-portfolio.github.io/settings/security">
+  <div class="flood" id="flood"></div><div class="sweep"><i id="sweepBar"></i></div>
+  <div class="head">
+    <div class="kicker">Settings · Security · mira@orbit.studio</div>
+    <div class="title">Create a password</div>
+  </div>
+  <div class="pw" id="pw">
+    <input id="pass" type="text" spellcheck="false" autocomplete="new-password" placeholder="New password" maxlength="40" aria-label="New password">
+    <button class="eye" id="eye" aria-label="Hide password">
+      <svg class="on" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+      <svg class="off" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 3l18 18M10.6 5.6A10.6 10.6 0 0 1 12 5.5c6.4 0 10 6.5 10 6.5a17 17 0 0 1-3.2 3.9M6.1 6.9C3.4 8.6 2 12 2 12s3.6 6.5 10 6.5c1.6 0 3-.4 4.2-1"/></svg>
+    </button>
+  </div>
+
+  <div class="meter" id="meter">
+    <div class="hud-corners"></div>
+    <div class="objbase"></div>
+    <svg class="obj" id="obj" viewBox="0 0 330 330">
+      <defs><filter id="glow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+      <g id="lines" filter="url(#glow)"></g>
+    </svg>
+    <div class="right">
+      <div class="nameWrap"><div class="name" id="name">No lock</div></div>
+      <div class="segs" id="segs"><i></i><i></i><i></i><i></i></div>
+      <div class="crack" id="crack">Nothing to crack yet</div>
+      <div class="est">Estimate · 10B guesses/s offline</div>
+      <div class="classes" id="classes"><span data-c="lower">a-z</span><span data-c="upper">A-Z</span><span data-c="digit">0-9</span><span data-c="sym">#!-</span></div>
+    </div>
+    <div class="bits"><b id="bits">0</b><small>bits</small></div>
+  </div>
+
+  <div class="status-line"><span>Veraetogrex · T08</span><span>Strength = length × character classes</span></div>
+</div>
+
+<script>window.AUTOPLAY = true;</script>
+<script src="_shared/stage.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const input = $('#pass'), pw = $('#pw'), eye = $('#eye'), meter = $('#meter'), linesG = $('#lines');
+const nameEl = $('#name'), crackEl = $('#crack'), bitsEl = $('#bits'), segs = [...document.querySelectorAll('#segs i')], classEls = [...document.querySelectorAll('#classes span')];
+
+// ================= strength estimate (from the actual input) =================
+const RATE = 1e10;                                        // guesses per second, offline attack
+function estimate(v) {
+  const cls = { lower: /[a-z]/.test(v), upper: /[A-Z]/.test(v), digit: /\d/.test(v), sym: /[^a-zA-Z0-9]/.test(v) };
+  const pool = (cls.lower ? 26 : 0) + (cls.upper ? 26 : 0) + (cls.digit ? 10 : 0) + (cls.sym ? 33 : 0);
+  const bits = v.length && pool ? v.length * Math.log2(pool) : 0;
+  const level = !v.length ? 0 : bits < 28 ? 1 : bits < 45 ? 2 : bits < 70 ? 3 : 4;
+  const seconds = Math.pow(2, bits - 1) / RATE;          // on average half the space is searched
+  return { cls, bits, level, seconds };
+}
+function crackText(v, sec) {
+  if (!v.length) return 'Nothing to crack yet';
+  if (sec < 1) return 'Cracked <span>instantly</span>';
+  const Y = 31557600, U = [['second', 1], ['minute', 60], ['hour', 3600], ['day', 86400], ['month', Y / 12]];
+  let t;
+  if (sec < Y) { let u = U[0]; for (const x of U) if (sec >= x[1]) u = x; const n = Math.round(sec / u[1]); t = `${n} ${u[0]}${n > 1 ? 's' : ''}`; }
+  else { const y = sec / Y;
+    t = y < 1000 ? `${Math.round(y)} year${Math.round(y) > 1 ? 's' : ''}` : y < 1e6 ? `${Math.round(y / 1000).toLocaleString('en-US')},000 years`
+      : y < 1e9 ? `${Math.round(y / 1e6)} million years` : y < 1e12 ? `${Math.round(y / 1e9)} billion years` : y < 1e15 ? `${Math.round(y / 1e12)} trillion years` : null; }
+  return t ? `Cracked in <span>${t}</span>` : 'Cracked <span>never, realistically</span>';
+}
+
+// ================= line-art geometry (isometric) =================
+const P = 72, NS = 14, KZ = 1.5, CX = 166, CY = 244;
+const iso = ([x, y, z]) => [CX + (x - z) * .866 * KZ, CY + (x + z) * .5 * KZ - y * KZ];
+const rect = (x0, y0, x1, y1, z) => [[x0, y1, z], [x1, y1, z], [x1, y0, z], [x0, y0, z], [x0, y1, z]];
+const rectZ = (x0, z0, x1, z1, y) => [[x0, y, z0], [x1, y, z0], [x1, y, z1], [x0, y, z1], [x0, y, z0]];
+function circle(cx, cy, z, r, a0 = -Math.PI / 2, turns = 1) { const o = []; for (let i = 0; i <= 40; i++) { const a = a0 + turns * i / 40 * Math.PI * 2; o.push([cx + r * Math.cos(a), cy - r * Math.sin(a), z]); } return o; }
+const point = (x, y, z) => [[x, y, z], [x, y, z]];
+// door leaf: local coords, hinge at x=-34, opens towards the viewer
+const leaf = (th) => ([x, y, z = 0]) => [-34 + (x + 34) * Math.cos(th) - z * Math.sin(th), y, (x + 34) * Math.sin(th) + z * Math.cos(th)];
+function paperclip(cx, cy, z, s) {
+  const o = [], arc = (ax, ay, r, a0, a1) => { for (let i = 0; i <= 14; i++) { const a = a0 + (a1 - a0) * i / 14; o.push([cx + (ax + r * Math.cos(a)) * s, cy + (ay + r * Math.sin(a)) * s, z]); } };
+  const L = (u, v) => o.push([cx + u * s, cy + v * s, z]);
+  L(3, 7); L(3, -12); arc(0, -12, 3, 0, -Math.PI); L(-3, 15); arc(1, 15, 4, Math.PI, 0); L(5, -15); arc(0, -15, 5, 0, -Math.PI); L(-5, 8);
+  return o;
+}
+function spoke(phi, i) {
+  const a = phi + i * Math.PI * 2 / 3, R = 38, ex = Math.cos(a) * R, ey = 64 + Math.sin(a) * R;
+  const o = [[Math.cos(a) * 7, 64 + Math.sin(a) * 7, 16], [ex, ey, 16]];
+  for (let k = 0; k <= 24; k++) { const b = a + Math.PI + k / 24 * Math.PI * 2; o.push([ex + 4.2 * Math.cos(b) + 4.2 * Math.cos(a), ey + 4.2 * Math.sin(b) + 4.2 * Math.sin(a), 16]); }
+  return o;
+}
+const N = [214, 218, 232], LEVEL_C = [N, [255, 122, 69], [255, 181, 71], [166, 155, 255], [63, 224, 208]];
+// returns NS strokes: { pts3d, o (opacity), c (rgb), w }
+function build(level, phi = 0) {
+  const S = [];
+  const add = (pts, o = .8, c = N, w = 2.4) => S.push({ pts, o, c, w });
+  const C = LEVEL_C[level];
+  if (level < 4) {
+    const th = level === 0 ? 1.2 : 0, L = leaf(th);
+    add([[-40, 0, 0], [-40, 128, 0], [40, 128, 0], [40, 0, 0]]);                                                                    // 0 frame outer
+    add([[-34, 0, 0], [-34, 122, 0], [34, 122, 0], [34, 0, 0]], .55);                                                             // 1 frame inner
+    add([[-40, 128, 0], [-40, 128, -14], [40, 128, -14], [40, 0, -14], [40, 0, 0]], .5);                                           // 2 depth
+    add(rectZ(-50, -26, 50, 34, 0), .28);                                                                                           // 3 floor
+    add(rect(-34, 0, 33, 122, 0).map(L), .85);                                                                                      // 4 leaf
+    add(rect(-25, 12, 24, 110, 0).map(L), .38);                                                                                     // 5 panel
+    add(circle(level ? 14 : 25, level ? 72 : 61, 0, 3.4).map(L), level === 3 ? 0 : .8);                                            // 6 knob
+    if (level === 0) { for (let i = 0; i < 4; i++) add(point(37, 62, 0), 0, C); }
+    if (level === 1) { add(paperclip(37, 62, 2, 2.3), 1, C, 3); for (let i = 0; i < 3; i++) add(point(37, 62, 2), 0, C); }
+    if (level === 2) {
+      const T = ([u, v, z]) => [36 + u * 1.75, 46 + v * 1.75, z];
+      add([[-6, 10, 6], [-6, 22, 6], ...circle(0, 22, 6, 6, Math.PI, .5).slice(1), [6, 10, 6]].map(T), 1, C, 3);                  // shackle
+      add(rect(-12, -12, 12, 10, 12).map(T), 1, C, 3);                                                                              // body front
+      add([[-12, 10, 12], [-12, 10, 5], [12, 10, 5], [12, -12, 5], [12, -12, 12]].map(T), .7, C, 2.2);                             // body depth
+      add([...circle(0, 2, 12, 2.6, Math.PI / 2), [0, -6, 12]].map(T), 1, C, 2.6);                                                 // keyhole
+    }
+    if (level === 3) {
+      add(rect(-4, 40, 28, 88, 3), 1, C, 3);                                                                                        // housing
+      add(rect(26, 58, 40, 70, 4), 1, C, 3);                                                                                        // bolt
+      add([...circle(12, 64, 5, 9, -Math.PI / 2), [12, 55, 5]], 1, C, 2.8);                                                        // thumb turn
+      add(rect(34, 46, 40, 82, 1), .9, C, 2.2);                                                                                     // strike plate
+    }
+    add(rect(-38, 96, -31, 110, 1), .55); add(rect(-38, 12, -31, 26, 1), .55);                                                    // 11,12 hinges
+    add(point(0, 64, 0), 0, C);                                                                                                     // 13 unused
+  } else {
+    const I = LEVEL_C[4];
+    add(rect(-62, 0, 62, 128, 0), .8);                                                                                              // 0 housing
+    add(circle(0, 64, 0, 54), .45);                                                                                                 // 1 recess
+    add([[-62, 128, 0], [-62, 128, -18], [62, 128, -18], [62, 0, -18], [62, 0, 0]], .5);                                           // 2 depth
+    add(rectZ(-66, -30, 66, 36, 0), .28);                                                                                           // 3 floor
+    add(circle(0, 64, 12, 48), 1, I, 3);                                                                                          // 4 door front
+    add(circle(0, 64, 5, 48), .5, I, 2);                                                                                            // 5 door edge
+    add(circle(0, 64, 16, 7), 1, I, 2.4);                                                                                           // 6 hub
+    add(circle(0, 64, 15, 27, phi), 1, I, 3);                                                                                     // 7 wheel ring
+    for (let i = 0; i < 3; i++) add(spoke(phi, i), 1, I, 3);                                                                     // 8-10 spokes
+    add(rect(-68, 86, -58, 104, 8), .6); add(rect(-68, 24, -58, 42, 8), .6);                                                       // 11,12 hinges
+    add(circle(0, 64, 12.5, 41, phi * .25), .6, I, 1.6);                                                                            // 13 tick ring
+  }
+  return S.map(s => ({ pts: resample(s.pts.map(iso)), o: s.o, c: s.c, w: s.w }));
+}
+function resample(pts) {
+  const d = [0]; for (let i = 1; i < pts.length; i++) d.push(d[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
+  const L = d[d.length - 1], out = [];
+  if (L === 0) { for (let i = 0; i < P; i++) out.push([pts[0][0], pts[0][1]]); return out; }
+  let j = 1;
+  for (let i = 0; i < P; i++) { const t = L * i / (P - 1); while (j < d.length - 1 && d[j] < t) j++; const k = (t - d[j - 1]) / ((d[j] - d[j - 1]) || 1); out.push([pts[j - 1][0] + (pts[j][0] - pts[j - 1][0]) * k, pts[j - 1][1] + (pts[j][1] - pts[j - 1][1]) * k]); }
+  return out;
+}
+
+// ================= morph engine =================
+const paths = [];
+for (let i = 0; i < NS; i++) { const p = document.createElementNS('http://www.w3.org/2000/svg', 'path'); if (i === 13) p.setAttribute('stroke-dasharray', '2 6'); linesG.appendChild(p); paths.push(p); }
+let cur = null, from = null, toLevel = 0, mT0 = 0, mDur = 0, phi = 0, spin = null, loopOn = false, shownLevel = 0, bitsShown = 0, bitsFrom = 0, bitsTo = 0, bT0 = 0, bDur = 320;
+const easeOutBack = t => { const c1 = 1.3, c3 = c1 + 1; return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2); };
+function draw(strokes) {
+  strokes.forEach((s, i) => {
+    paths[i].setAttribute('d', 'M' + s.pts.map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('L'));
+    paths[i].setAttribute('stroke', `rgb(${s.c.map(Math.round).join(',')})`);
+    paths[i].setAttribute('stroke-opacity', s.o.toFixed(3));
+    paths[i].setAttribute('stroke-width', s.w.toFixed(2));
+  });
+}
+function mix(a, b, t) {
+  return a.map((s, i) => { const e = b[i], tc = Math.min(1, Math.max(0, t));
+    return { pts: s.pts.map((p, k) => [p[0] + (e.pts[k][0] - p[0]) * t, p[1] + (e.pts[k][1] - p[1]) * t]),
+             o: s.o + (e.o - s.o) * tc, c: s.c.map((v, k) => v + (e.c[k] - v) * tc), w: s.w + (e.w - s.w) * tc }; });
+}
+function morphTo(level, dur) {
+  if (level === toLevel && from) return;
+  from = cur; toLevel = level; mT0 = performance.now(); mDur = dur;
+  if (level !== 4) spin = null;
+  kick();
+}
+function kick() { if (!loopOn) { loopOn = true; Stage.frame(tick); } }
+function tick(now) {
+  let busy = false;
+  if (spin) { const p = Math.min(1, Math.max(0, (now - spin.t0) / spin.dur)); phi = spin.a0 + (spin.a1 - spin.a0) * (1 - Math.pow(1 - p, 3)); if (p >= 1) spin = null; else busy = true; }
+  const target = build(toLevel, phi);
+  if (from) {
+    const p = Math.min(1, Math.max(0, (now - mT0) / mDur));
+    cur = mix(from, target, easeOutBack(p));
+    if (p >= 1) { from = null; cur = target; if (toLevel === 4 && !spin) startSpin(now); } else busy = true;
+    if (spin) busy = true;
+  } else cur = target;
+  draw(cur);
+  // bits counter
+  const bp = Math.min(1, Math.max(0, (now - bT0) / bDur));
+  bitsShown = bitsFrom + (bitsTo - bitsFrom) * (1 - Math.pow(1 - bp, 3));
+  bitsEl.textContent = Math.round(bitsShown);
+  if (bp < 1) busy = true;
+  if (busy) Stage.frame(tick); else loopOn = false;
+}
+function startSpin(now) { spin = { t0: now, dur: 1300, a0: phi, a1: phi - Math.PI * 1.5 }; }
+
+// ================= payoff: Ion light when the vault locks =================
+const flood = $('#flood'), sweepBar = $('#sweepBar');
+let lit = false;
+function payoff(on) {
+  if (on === lit) return;
+  lit = on;
+  flood.getAnimations().forEach(a => a.cancel());
+  if (on) {
+    flood.animate([{ opacity: 0, transform: 'scale(.15)' }, { opacity: 1, transform: 'scale(.75)', offset: .2 }, { opacity: .42, transform: 'scale(1)' }], { duration: 1500, delay: 150, easing: 'cubic-bezier(.2,.8,.2,1)', fill: 'forwards' });
+    sweepBar.animate([{ transform: 'translateX(-700px) skewX(-20deg)', opacity: 1 }, { transform: 'translateX(1600px) skewX(-20deg)', opacity: 1 }], { duration: 1050, delay: 200, easing: 'cubic-bezier(.45,0,.3,1)' });
+  } else flood.animate([{ opacity: .42 }, { opacity: 0 }], { duration: 300 });
+}
+
+// ================= UI =================
+function update(deleting) {
+  const v = input.value, e = estimate(v);
+  if (e.level !== shownLevel) {
+    const up = e.level > shownLevel;
+    shownLevel = e.level;
+    nameEl.animate([{ transform: `translateY(${up ? 30 : -30}px)`, opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 300, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    morphTo(e.level, deleting ? 240 : 560);
+  }
+  nameEl.textContent = ['No lock', 'A paperclip', 'A padlock', 'A deadbolt', 'A bank vault'][e.level];
+  const col = `rgb(${LEVEL_C[e.level].join(',')})`;
+  nameEl.style.color = e.level ? col : 'var(--text)';
+  segs.forEach((s, i) => { const on = i < e.level; s.style.background = on ? col : ''; s.style.boxShadow = on ? `0 0 14px ${col}` : ''; });
+  crackEl.innerHTML = crackText(v, e.seconds);
+  const sp = crackEl.querySelector('span'); if (sp) sp.style.color = e.level ? col : '';
+  bitsEl.style.color = e.level === 4 ? col : '';
+  classEls.forEach(c => c.classList.toggle('on', e.cls[c.dataset.c]));
+  meter.classList.toggle('vault', e.level === 4); pw.classList.toggle('vault', e.level === 4);
+  payoff(e.level === 4);
+  bitsFrom = bitsShown; bitsTo = Math.round(e.bits); bT0 = performance.now(); bDur = deleting ? 140 : 320; kick();
+}
+input.addEventListener('input', e => update(e.inputType && e.inputType.startsWith('delete')));
+let sel = null;
+eye.addEventListener('click', () => { const m = input.type === 'text', [a, z] = sel || [input.value.length, input.value.length]; sel = null; input.type = m ? 'password' : 'text';
+  // Chromium resets the caret to 0 a moment after an input's type changes: restore it once layout has settled
+  const keep = () => { if (document.activeElement === input) try { input.setSelectionRange(a, z); } catch (e) {} };
+  input.focus({ preventScroll: true }); keep(); requestAnimationFrame(keep); setTimeout(keep, 40); eye.classList.toggle('masked', m); eye.setAttribute('aria-label', m ? 'Show password' : 'Hide password'); });
+eye.addEventListener('pointerdown', e => { sel = document.activeElement === input ? [input.selectionStart, input.selectionEnd] : null; e.preventDefault(); });
+eye.addEventListener('mousedown', e => e.preventDefault());
+
+function reset() {
+  lit = false; flood.getAnimations().forEach(a => a.cancel()); sweepBar.getAnimations().forEach(a => a.cancel());
+  input.value = ''; input.type = 'text'; eye.classList.remove('masked');
+  from = null; toLevel = 0; spin = null; phi = 0; loopOn = false; shownLevel = 0;
+  bitsShown = bitsFrom = bitsTo = 0; bT0 = 0;
+  cur = build(0); draw(cur);
+  update(false);
+  bitsEl.textContent = '0';
+}
+
+// demo helper: Backspace, one character at a time, through the same input handler
+async function erase(s, per) {
+  while (input.value.length) {
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Backspace', bubbles: true }));
+    input.value = input.value.slice(0, -1);
+    input.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
+    await s.wait(per);
+  }
+}
+
+Stage.init({
+  reset,
+  cursorStart: [1170, 300],
+  async demo(s) {
+    await s.click(input, { ms: 200, dx: 250, hold: 60 });           // ≈0.27 s — field focused
+    s.move([1180, 318], 500, { arc: .2 }).catch(() => {});
+    await s.type(input, 'neon', { cps: 9, jitter: .2 });            // paperclip
+    await s.wait(420);
+    await s.type(input, '-r', { cps: 8, append: true });            // padlock
+    await s.wait(720);
+    await s.type(input, 'ive', { cps: 9, append: true });           // deadbolt
+    await s.wait(640);
+    await s.type(input, 'r-42', { cps: 10, append: true });         // vault, wheel turns
+    await s.wait(1850);
+    await erase(s, 44);                                             // ≈0.6 s, back to the open door
+    input.blur();
+    s.move([1170, 300], 300).catch(() => {});
+    await s.wait(330);
+  },
+});
+</script>
+</body>
+</html>
