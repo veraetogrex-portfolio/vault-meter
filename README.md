@@ -2,7 +2,7 @@
 
 **Password meters are a bar. This one is a vault door.**
 
-![Vault Meter preview](preview.jpg)
+![Vault Meter preview](preview.gif)
 
 **Live demo:** [veraetogrex-portfolio.github.io/vault-meter](https://veraetogrex-portfolio.github.io/vault-meter/) · **Mockup:** [full-screen version](https://veraetogrex-portfolio.github.io/vault-meter/mockup/vault-meter.html)
 
